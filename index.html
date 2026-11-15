@@ -167,6 +167,10 @@ function makeGrid(seed) {
       g.buildings.push({ kind, x, y, w, h, label, color });
       if (label) g.labels.push({ text: label, x: x + w / 2, y: kind === "fountain" ? y + h + 0.55 : y - 0.1, poi: true });
     },
+     garden(x, y, w, h, d) {       // fleurs (n'influence pas le reste de la carte)
+      for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++)
+        if (hash(i, j, 777) < d) g.flowerList.push({ x: i, y: j, c: Math.floor(hash(i, j, 778) * 4) });
+    },
     label(text, x, y) { g.labels.push({ text, x, y, poi: false }); },
     poi(text, x, y) { g.labels.push({ text, x, y, poi: true }); },
   };
@@ -204,6 +208,7 @@ const ZONES = {
     g.road([[2, 7], [23, 7]]);            // chemin vers l'est
     g.road([[12, 7], [12, 15]]);          // chemin vers le sud
     g.flowers(1, 1, 10, 6, 0.12); g.flowers(14, 9, 9, 6, 0.12);
+    g.garden(1, 1, 10, 6, 0.30); g.garden(14, 9, 9, 6, 0.30);   // plus de fleurs
     g.label("Plaine", 5.5, 3.5); g.label("Début de forêt", 18.5, 3.5);
     g.label("Début de forêt", 5.5, 12.5); g.label("Plaine", 18.5, 12.5);
   }},
@@ -292,6 +297,11 @@ const ZONES = {
     g.rect(5, 14, 15, 1, PATH);
     g.rect(1, 14, 4, 1, PATH);            // route sous la maison en bas à gauche
     g.rect(14, 10, 2, 5, PATH);
+    g.rect(2, 10, 3, 1, PATH);            // chemin devant l'auberge
+    g.garden(7, 11, 7, 3, 0.45);          // fleurs : petit jardin du centre
+    g.garden(8, 1, 4, 4, 0.30);           // fleurs : entre le marché et le grand hall
+    g.garden(18, 5, 5, 2, 0.40);          // fleurs : à droite de la place
+    g.garden(18, 9, 5, 2, 0.40);
     g.building("market", 1, 1, 6, 3, "Marché");
     g.building("hall", 14, 1, 7, 4, "Grand hall");
     g.building("fountain", 11, 7, 2, 2, "Fontaine");
@@ -328,6 +338,7 @@ const ZONES = {
     g.scatter(TREE, 1, 9, 22, 6, 0.04);
     g.road([[0, 7], [5, 7], [11, 3], [12, 3], [12, 0]]);
     g.flowers(1, 1, 10, 5, 0.15); g.flowers(1, 9, 22, 6, 0.10);
+    g.garden(1, 1, 22, 14, 0.25);                               // plus de fleurs
     g.label("Début de forêt", 19, 3.5); g.label("Plaine", 12.5, 12.5);
   }},
 };
