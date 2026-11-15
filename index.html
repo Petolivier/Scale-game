@@ -55,6 +55,19 @@
   .ghost { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center;
            background: rgba(38,44,64,.92); border: 1px solid #ffd24c; border-radius: 5px; line-height: 1; }
   .invHint { font-size: 11px; color: #7f88a3; margin-top: 8px; text-align: center; }
+   #eqBox { display: grid; grid-template-columns: repeat(3, 56px); grid-template-rows: repeat(4, 56px); gap: 4px; justify-content: center; margin-bottom: 14px; touch-action: none; user-select: none; }
+  .eqslot { position: relative; display: flex; align-items: center; justify-content: center; background: #14161c; border: 1px solid #2c3040; border-radius: 6px; }
+  .eqslot .eqlabel { font-size: 10px; color: #5d6683; text-align: center; pointer-events: none; }
+  .eqslot .ico { font-size: 30px; line-height: 1; pointer-events: none; }
+  .eqslot.full { background: #262c40; border-color: #4a5280; cursor: grab; }
+  .eqslot.dragging { opacity: .35; }
+  .eqslot.ok { border-color: #50c878; background: rgba(80,200,120,.2); }
+  .eqslot.no { border-color: #dc4646; background: rgba(220,70,70,.2); }
+  #goldBox { grid-column: 3; grid-row: 3 / span 2; display: flex; flex-direction: column; align-items: center; justify-content: center;
+             background: #2a2616; border: 1px solid #6b5a22; border-radius: 6px; font-size: 24px; line-height: 1; }
+  #goldBox b { font-size: 16px; color: #ffd24c; margin-top: 6px; }
+  #goldBox small { font-size: 10px; color: #a39556; margin-top: 3px; }
+  .eqTitle { font-size: 13px; color: #9aa3bd; text-align: center; margin: 0 0 8px; }
  #creation { position: fixed; inset: 0; background: rgba(10,12,18,.92); display: flex; align-items: center; justify-content: center; z-index: 10; }
   #creation .box { background: #1e2230; border: 2px solid #3a4160; border-radius: 10px; padding: 20px; width: 340px; max-width: 94vw; }
   #creation h1 { margin: 0 0 12px; font-size: 22px; }
@@ -110,8 +123,20 @@
   <div class="panel" id="invPanel">
     <h2 id="invHead">🎒 Inventaire <small id="invCount"></small></h2>
     <div id="invBody">
+            <div class="eqTitle">⚔️ Équipement</div>
+      <div id="eqBox">
+        <div class="eqslot" data-slot="casque"    style="grid-column:2;grid-row:1"></div>
+        <div class="eqslot" data-slot="main1"     style="grid-column:1;grid-row:2"></div>
+        <div class="eqslot" data-slot="armure"    style="grid-column:2;grid-row:2"></div>
+        <div class="eqslot" data-slot="main2"     style="grid-column:3;grid-row:2"></div>
+        <div class="eqslot" data-slot="anneau"    style="grid-column:1;grid-row:3"></div>
+        <div class="eqslot" data-slot="bottes"    style="grid-column:2;grid-row:3"></div>
+        <div class="eqslot" data-slot="parchemin" style="grid-column:1;grid-row:4"></div>
+        <div class="eqslot" data-slot="baguette"  style="grid-column:2;grid-row:4"></div>
+        <div id="goldBox">🪙<b id="goldText">0</b><small>pièces d'or</small></div>
+      </div>
       <div id="invGrid"></div>
-      <div class="invHint">Glisse les objets pour les placer. R : pivoter pendant le glissé. I : ouvrir / fermer.</div>
+      <div class="invHint">Glisse un objet sur un emplacement pour l'équiper. R : pivoter pendant le glissé. I : ouvrir / fermer.</div>
     </div>
   </div>
 </div>
@@ -938,24 +963,45 @@ document.getElementById("statsList").addEventListener("click", e => {
 });
 
 // =====================================================================
-// INVENTAIRE : grille de 6 colonnes x 10 lignes.
-// Chaque objet occupe 1 ou plusieurs cases (pas d'empilement).
+// INVENTAIRE (grille 6 x 10, objets de 1 ou plusieurs cases) + ÉQUIPEMENT + OR
 // =====================================================================
 const INV_COLS = 6, INV_ROWS = 10, CELL = 44;     // CELL = taille d'une case + l'espace entre deux cases
-const ITEMS = {                                   // w = largeur, h = hauteur (en cases)
-  potion:   { name: "Potion de soin",   icon: "🧪", w: 1, h: 1, desc: "Rend des points de vie." },
-  pain:     { name: "Pain",             icon: "🍞", w: 1, h: 1, desc: "Un bon casse-croûte." },
-  pomme:    { name: "Pomme",            icon: "🍎", w: 1, h: 1, desc: "Croquante et sucrée." },
-  ecaille:  { name: "Écaille",          icon: "🐟", w: 1, h: 1, desc: "Une écaille brillante à collectionner." },
-  epee:     { name: "Épée rouillée",    icon: "🗡️", w: 1, h: 3, desc: "Elle a connu de meilleurs jours." },
-  bouclier: { name: "Bouclier en bois", icon: "🛡️", w: 2, h: 2, desc: "Un peu fissuré." },
-  armure:   { name: "Armure en cuir",   icon: "🥋", w: 2, h: 3, desc: "Légère et souple." },
+const ITEMS = {                                   // w x h = taille en cases | slot = type d'emplacement où on peut l'équiper
+  potion:    { name: "Potion de soin",    icon: "🧪", w: 1, h: 1, desc: "Rend des points de vie." },
+  pain:      { name: "Pain",              icon: "🍞", w: 1, h: 1, desc: "Un bon casse-croûte." },
+  pomme:     { name: "Pomme",             icon: "🍎", w: 1, h: 1, desc: "Croquante et sucrée." },
+  ecaille:   { name: "Écaille",           icon: "🐟", w: 1, h: 1, desc: "Une écaille brillante à collectionner." },
+  epee:      { name: "Épée rouillée",     icon: "🗡️", w: 1, h: 3, slot: "main",      desc: "Elle a connu de meilleurs jours." },
+  bouclier:  { name: "Bouclier en bois",  icon: "🛡️", w: 2, h: 2, slot: "main",      desc: "Un peu fissuré." },
+  armure:    { name: "Armure en cuir",    icon: "🥋", w: 2, h: 3, slot: "armure",    desc: "Légère et souple." },
+  casque:    { name: "Casque en fer",     icon: "⛑️", w: 2, h: 2, slot: "casque",    desc: "Protège la tête." },
+  bottes:    { name: "Bottes de cuir",    icon: "🥾", w: 2, h: 2, slot: "bottes",    desc: "Confortables pour la marche." },
+  anneau:    { name: "Anneau de cuivre",  icon: "💍", w: 1, h: 1, slot: "anneau",    desc: "Un simple anneau." },
+  parchemin: { name: "Parchemin ancien",  icon: "📜", w: 1, h: 2, slot: "parchemin", desc: "Des runes à moitié effacées." },
+  baguette:  { name: "Baguette de noisetier", icon: "🪄", w: 1, h: 2, slot: "baguette", desc: "Elle vibre légèrement." },
 };
+// Emplacements d'équipement (main1 et main2 acceptent les mêmes objets : type "main")
+const EQUIP_SLOTS = {
+  casque:    { type: "casque",    label: "Casque" },
+  armure:    { type: "armure",    label: "Armure" },
+  main1:     { type: "main",      label: "Main 1" },
+  main2:     { type: "main",      label: "Main 2" },
+  anneau:    { type: "anneau",    label: "Anneau" },
+  bottes:    { type: "bottes",    label: "Bottes" },
+  parchemin: { type: "parchemin", label: "Parchemin" },
+  baguette:  { type: "baguette",  label: "Baguette" },
+};
+const START_GOLD = 25;                            // pièces d'or au départ
 let invDrag = null;
 
+const canEquip = (it, slotName) => ITEMS[it.id].slot === EQUIP_SLOTS[slotName].type;
 const itemSize = it => it.rot ? { w: ITEMS[it.id].h, h: ITEMS[it.id].w } : { w: ITEMS[it.id].w, h: ITEMS[it.id].h };
 
-// Est-ce qu'un objet de taille w x h peut se poser en (x, y) ? (ignore = l'objet qu'on déplace)
+// ---------- Pièces d'or ----------
+function addGold(n) { me.gold = Math.max(0, me.gold + n); document.getElementById("goldText").textContent = me.gold; }
+function spendGold(n) { if (me.gold < n) return false; addGold(-n); return true; }   // false si pas assez d'or
+
+// ---------- Placement dans la grille ----------
 function fits(x, y, w, h, ignore) {
   if (x < 0 || y < 0 || x + w > INV_COLS || y + h > INV_ROWS) return false;
   return !me.inv.some(it => {
@@ -964,9 +1010,7 @@ function fits(x, y, w, h, ignore) {
     return x < it.x + s.w && it.x < x + w && y < it.y + s.h && it.y < y + h;
   });
 }
-
-// Cherche la première place libre (en essayant aussi l'objet tourné)
-function findSpot(id) {
+function findSpot(id) {                           // première place libre (en essayant aussi l'objet tourné)
   const d = ITEMS[id];
   for (const rot of [false, true]) {
     const w = rot ? d.h : d.w, h = rot ? d.w : d.h;
@@ -976,7 +1020,14 @@ function findSpot(id) {
   }
   return null;
 }
-
+function placeSpot(id, px, py) {                  // essaie d'abord la position (px, py), sinon la première place libre
+  const d = ITEMS[id];
+  for (const rot of [false, true]) {
+    const w = rot ? d.h : d.w, h = rot ? d.w : d.h;
+    if (fits(px, py, w, h, null)) return { x: px, y: py, rot };
+  }
+  return findSpot(id);
+}
 // Ajoute des objets. Renvoie le nombre d'objets qui n'ont pas pu entrer (inventaire plein).
 function addItem(id, qty = 1) {
   while (qty > 0) {
@@ -991,9 +1042,28 @@ function addItem(id, qty = 1) {
 
 function initInventory() {
   me.inv = [];
+  me.equip = {};                                  // objets équipés : { casque: {id}, main1: {id}, ... }
+  me.gold = START_GOLD;
   addItem("armure"); addItem("bouclier"); addItem("epee");
+  addItem("casque"); addItem("bottes"); addItem("anneau"); addItem("parchemin"); addItem("baguette");
   addItem("potion", 3); addItem("pain", 2); addItem("pomme", 2); addItem("ecaille", 5);
   renderInventory();
+}
+
+// ---------- Affichage ----------
+function renderEquipment() {
+  document.querySelectorAll(".eqslot").forEach(el => {
+    const name = el.dataset.slot, it = me.equip && me.equip[name];
+    if (it) {
+      const d = ITEMS[it.id];
+      el.className = "eqslot full"; el.title = d.name + " : " + d.desc;
+      el.innerHTML = `<span class="ico">${d.icon}</span>`;
+    } else {
+      el.className = "eqslot"; el.title = "";
+      el.innerHTML = `<span class="eqlabel">${EQUIP_SLOTS[name].label}</span>`;
+    }
+  });
+  document.getElementById("goldText").textContent = me.gold;
 }
 
 function renderInventory() {
@@ -1016,6 +1086,7 @@ function renderInventory() {
     layer.appendChild(el);
   }
   document.getElementById("invCount").textContent = used + " / " + INV_COLS * INV_ROWS;
+  renderEquipment();
 }
 
 function toggleInventory() {
@@ -1025,9 +1096,10 @@ function toggleInventory() {
 document.getElementById("invHead").addEventListener("click", toggleInventory);
 
 // ---------- Glisser-déposer (souris et écran tactile) ----------
+const eqSlotAt = e => { const t = document.elementFromPoint(e.clientX, e.clientY); return t && t.closest ? t.closest(".eqslot") : null; };
 function dragSize() { const d = ITEMS[invDrag.it.id]; return invDrag.rot ? { w: d.h, h: d.w } : { w: d.w, h: d.h }; }
 
-// Case visée (coin haut-gauche de l'objet), d'après la position du curseur
+// Case visée dans la grille (coin haut-gauche de l'objet), d'après la position du curseur
 function dragTarget(e) {
   const r = document.getElementById("invGrid").getBoundingClientRect(), s = dragSize();
   const x = Math.round((e.clientX - r.left - (s.w * CELL - 4) / 2) / CELL);
@@ -1042,34 +1114,75 @@ function updateDrag(e) {
   const t = dragTarget(e), g = invDrag.ghost;
   g.style.width = (t.s.w * CELL - 4) + "px"; g.style.height = (t.s.h * CELL - 4) + "px";
   g.style.left = e.clientX + "px"; g.style.top = e.clientY + "px";
+  // aperçu vert / rouge dans la grille
   let p = invDrag.preview;
   if (!p) { p = invDrag.preview = document.createElement("div"); document.getElementById("invItems").appendChild(p); }
   p.className = "preview " + (t.ok ? "ok" : "no");
   p.style.display = t.inside ? "block" : "none";
   p.style.left = t.x * CELL + "px"; p.style.top = t.y * CELL + "px";
   p.style.width = (t.s.w * CELL - 4) + "px"; p.style.height = (t.s.h * CELL - 4) + "px";
+  // emplacement d'équipement survolé : vert si l'objet peut y aller, rouge sinon
+  if (invDrag.eqOver) { invDrag.eqOver.classList.remove("ok", "no"); invDrag.eqOver = null; }
+  const eq = eqSlotAt(e);
+  if (eq) { eq.classList.add(canEquip(invDrag.it, eq.dataset.slot) ? "ok" : "no"); invDrag.eqOver = eq; }
+}
+
+function dropOnGrid(d, t) {
+  if (d.from.kind === "equip") {                  // on enlève l'objet de l'équipement et on le range ici
+    me.equip[d.from.slot] = null;
+    me.inv.push({ id: d.it.id, x: t.x, y: t.y, rot: d.rot });
+  } else { d.it.x = t.x; d.it.y = t.y; d.it.rot = d.rot; }
+}
+
+function dropOnEquip(d, slot) {
+  const prev = me.equip[slot];
+  if (d.from.kind === "equip") {                  // d'un emplacement à un autre : on échange
+    if (d.from.slot === slot) return;
+    if (prev && !canEquip(prev, d.from.slot)) return;
+    me.equip[d.from.slot] = prev || null; me.equip[slot] = { id: d.it.id };
+    return;
+  }
+  const idx = me.inv.indexOf(d.it);               // depuis l'inventaire
+  me.inv.splice(idx, 1);
+  if (prev) {                                     // l'objet déjà équipé retourne dans l'inventaire
+    const spot = placeSpot(prev.id, d.it.x, d.it.y);
+    if (!spot) { me.inv.splice(idx, 0, d.it); toast("Inventaire plein : impossible d'échanger"); return; }
+    me.inv.push({ id: prev.id, x: spot.x, y: spot.y, rot: spot.rot });
+  }
+  me.equip[slot] = { id: d.it.id };
 }
 
 function endDrag(e, drop) {
   if (!invDrag) return;
-  const t = dragTarget(e), d = invDrag;
+  const t = dragTarget(e), eq = eqSlotAt(e), d = invDrag;
   invDrag = null;
   d.ghost.remove();
-  if (drop && t.ok) { d.it.x = t.x; d.it.y = t.y; d.it.rot = d.rot; }   // sinon l'objet reste où il était
+  if (d.eqOver) d.eqOver.classList.remove("ok", "no");
+  if (drop) {
+    if (eq) { if (canEquip(d.it, eq.dataset.slot)) dropOnEquip(d, eq.dataset.slot); }
+    else if (t.ok) dropOnGrid(d, t);
+  }                                               // sinon l'objet reste où il était
   renderInventory();
 }
 
-document.getElementById("invGrid").addEventListener("pointerdown", e => {
-  const el = e.target.closest(".item");
-  if (!el || !el._it || !me) return;
+function startDrag(e, el, it, from) {
   e.preventDefault();
   try { el.setPointerCapture(e.pointerId); } catch (err) {}
-  const ghost = document.createElement("div");
-  ghost.className = "ghost"; ghost.innerHTML = el.innerHTML;
+  const d = ITEMS[it.id], ghost = document.createElement("div");
+  ghost.className = "ghost";
+  ghost.innerHTML = `<span class="ico" style="font-size:${Math.min(d.w, d.h) * 22 + 2}px">${d.icon}</span>`;
   document.body.appendChild(ghost);
-  invDrag = { it: el._it, el, ghost, rot: !!el._it.rot, preview: null, last: e };
+  invDrag = { it, el, ghost, from, rot: !!it.rot, preview: null, eqOver: null, last: e };
   el.classList.add("dragging");
   updateDrag(e);
+}
+document.getElementById("invGrid").addEventListener("pointerdown", e => {
+  const el = e.target.closest(".item");
+  if (el && el._it && me) startDrag(e, el, el._it, { kind: "grid" });
+});
+document.getElementById("eqBox").addEventListener("pointerdown", e => {
+  const el = e.target.closest(".eqslot");
+  if (el && el.classList.contains("full") && me) startDrag(e, el, me.equip[el.dataset.slot], { kind: "equip", slot: el.dataset.slot });
 });
 window.addEventListener("pointermove", updateDrag);
 window.addEventListener("pointerup", e => endDrag(e, true));
