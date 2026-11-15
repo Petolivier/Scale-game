@@ -104,8 +104,8 @@ const ONLINE = firebaseConfig.apiKey !== "COLLE_ICI";
 // 2) LE MONDE : 4 x 3 zones, chaque zone fait 24 x 16 cases
 // =====================================================================
 const TILE = 32, COLS = 24, ROWS = 16;
-const GRASS = 0, PATH = 1, WHEAT = 2, WATER = 3, TREE = 4, ROCK = 5, BUILD = 6, FENCE = 7, CAVE = 8;
-const BLOCKING = new Set([WATER, TREE, ROCK, BUILD, FENCE]);
+const GRASS = 0, PATH = 1, WHEAT = 2, WATER = 3, TREE = 4, ROCK = 5, BUILD = 6, FENCE = 7, CAVE = 8, BOULDER = 9;
+const BLOCKING = new Set([WATER, TREE, ROCK, BUILD, FENCE,BOULDER]);
 const WORLD_W = 4, WORLD_H = 3;
 
 // Liaisons (les flèches rouges de ton schéma).
@@ -291,6 +291,8 @@ const ZONES = {
     g.building("house", 18, 11, 3, 3, "Maison", "#7a4aa8");
   }},
   "1,2": { name: "Chemin rocailleux", short: "Chemin rocailleux", border: TREE, build(g) {
+    g.scatter(BOULDER, 1, 1, 22, 14, 0.07);
+    for (const [x, y] of [[3, 11], [4, 11], [4, 12], [17, 3], [18, 3], [19, 4], [20, 12], [21, 12]]) g.set(x, y, BOULDER);
     g.scatter(TREE, 1, 1, 22, 14, 0.04);
     g.road([[0, 7], [23, 7]]);
     g.road([[12, 0], [12, 3], [6, 7]]);   // chemin en diagonale vers le nord
@@ -298,6 +300,8 @@ const ZONES = {
     g.label("Plaine", 13, 12.5);
   }},
   "2,2": { name: "Pâturage rocailleux", short: "Pâturage rocailleux", border: TREE, build(g) {
+    g.scatter(BOULDER, 1, 1, 22, 14, 0.07);
+    for (const [x, y] of [[3, 3], [4, 3], [4, 4], [9, 11], [10, 11], [10, 12], [19, 3], [20, 3]]) g.set(x, y, BOULDER);
     g.scatter(TREE, 1, 1, 22, 5, 0.22);   // léger bois
     g.scatter(TREE, 1, 9, 10, 6, 0.05);
     g.road([[0, 7], [23, 7]]);
@@ -613,6 +617,14 @@ function drawRock(c, px, py, r) {
   c.fillStyle = "#9296a5"; poly(c, [px + 16, top, px + 25, py + 8, px + 31, py + 31, px + 19, py + 31]);
   if (r > .55) { c.fillStyle = "#f2f4f8"; poly(c, [px + 16, top, px + 11, top + 8, px + 16, top + 6, px + 21, top + 8]); }
 }
+function drawBoulder(c, px, py, r) {
+  c.fillStyle = "rgba(0,0,0,.22)"; c.beginPath(); c.ellipse(px + 16, py + 28, 12, 4, 0, 0, Math.PI * 2); c.fill();
+  const w = 20 + r * 6, h = 14 + r * 4;
+  c.fillStyle = "#7b7f8c"; c.beginPath(); c.ellipse(px + 16, py + 22, w / 2 + 2, h / 2 + 2, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#9a9eac"; c.beginPath(); c.ellipse(px + 15, py + 20, w / 2, h / 2, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#b9bdca"; c.beginPath(); c.ellipse(px + 11, py + 16, w / 5, h / 5, 0, 0, Math.PI * 2); c.fill();
+  if (r > .5) { c.fillStyle = "#858996"; c.beginPath(); c.ellipse(px + 25, py + 26, 5, 3.5, 0, 0, Math.PI * 2); c.fill(); }
+}
 function drawFence(c, z, x, y, px, py) {
   const f = (xx, yy) => z.tiles[yy] && z.tiles[yy][xx] === FENCE;
   c.fillStyle = "#8a5a2b";
@@ -730,6 +742,7 @@ function renderStatic(z) {
     const T = z.tiles[y][x], px = x * TILE, py = y * TILE, r = hash(x, y, seed + 99);
     if (T === TREE) drawTree(c, px, py, r);
     else if (T === ROCK) drawRock(c, px, py, r);
+    else if (T === BOULDER) drawBoulder(c, px, py, r);
     else if (T === FENCE) drawFence(c, z, x, y, px, py);
     else if (T === CAVE) drawCave(c, px, py, z.tiles[y][x + 1] === CAVE);
   }
