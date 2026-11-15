@@ -539,7 +539,29 @@ function enterZone(zx, zy) {
 // =====================================================================
 // 5) MULTIJOUEUR (Firebase Realtime Database)
 // =====================================================================
-function publicData() {
+const HEARTBEAT_MS = 10000;     // chaque joueur donne signe de vie toutes les 10 secondes
+const GHOST_MS = 120000;        // un joueur sans signe de vie depuis 2 minutes est considéré comme un fantôme
+const lastSeen = {};            // id -> { t: dernier signe de vie reçu, at: heure (locale) à laquelle il a changé }
+
+function applyPlayers(data, removeGhost) {
+  const now = Date.now();
+  for (const id in others) if (!data[id]) { delete others[id]; delete display[id]; }
+  for (const id in lastSeen) if (!data[id]) delete lastSeen[id];
+  for (const id in data) {
+    if (id === myId) continue;
+    const p = data[id], seen = lastSeen[id];
+    if (!seen || seen.t !== p.t) lastSeen[id] = { t: p.t, at: now };
+    else if (now - seen.at > GHOST_MS) {                  // plus aucun signe de vie : joueur fantôme
+      removeGhost(id); delete others[id]; delete display[id];
+      continue;
+    }
+    const prev = others[id];
+    others[id] = p;
+    if (!display[id] || !prev || prev.zx !== p.zx || prev.zy !== p.zy) display[id] = { x: p.x, y: p.y };
+  }
+  refreshLists();
+}
+ function publicData() {
   return { name: me.name, color: me.color, x: me.x, y: me.y, zx: me.zx, zy: me.zy, hp: me.hp, pv: me.stats.pv, level: me.level, t: Date.now() };
 }
 
@@ -547,7 +569,7 @@ async function connect() {
   const status = document.getElementById("status");
   try {
     const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js");
-    const { getDatabase, ref, set, update, onValue, onDisconnect } =
+    const { getDatabase, ref, set, update, onValue, onDisconnect, remove } =
       await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js");
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
@@ -555,18 +577,11 @@ async function connect() {
     fbUpdate = update;
     await set(myRef, publicData());
     onDisconnect(myRef).remove();
+       setInterval(syncMe, HEARTBEAT_MS);                                   // signal de vie : « je suis toujours là »
+    document.addEventListener("visibilitychange", () => { if (!document.hidden) syncMe(); });
 
-    onValue(ref(db, "players"), snap => {
-      const data = snap.val() || {};
-      for (const id in others) if (!data[id]) { delete others[id]; delete display[id]; }
-      for (const id in data) {
-        if (id === myId) continue;
-        const prev = others[id];
-        others[id] = data[id];
-        if (!display[id] || !prev || prev.zx !== data[id].zx || prev.zy !== data[id].zy)
-          display[id] = { x: data[id].x, y: data[id].y };
-      }
-      refreshLists();
+        onValue(ref(db, "players"), snap => {
+      applyPlayers(snap.val() || {}, id => remove(ref(db, "players/" + id)).catch(() => {}));
     });
     status.innerHTML = "Connecté au multijoueur<br>Déplacement : flèches ou Z Q S D<br>L : afficher / masquer les noms des zones";
   } catch (err) {
