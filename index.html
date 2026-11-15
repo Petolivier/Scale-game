@@ -604,7 +604,7 @@ document.querySelectorAll("#dpad button").forEach(b => {
   b.addEventListener("mousedown", on);  b.addEventListener("mouseup", off);
 });
 
-const moveDelay = () => Math.max(120, 260 - me.stats.vitesse * 6);
+const moveDelay = () => Math.max(100, 280 - me.stats.vitesse * 10);
 
 let toastTimer = null;
 function toast(msg) {
