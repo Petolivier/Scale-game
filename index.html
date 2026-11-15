@@ -561,6 +561,7 @@ const HEARTBEAT_MS = 10000;     // chaque joueur donne signe de vie toutes les 1
 const GHOST_MS = 120000;        // un joueur sans signe de vie depuis 2 minutes est considéré comme un fantôme
 const lastSeen = {};            // id -> { t: dernier signe de vie reçu, at: heure (locale) à laquelle il a changé }
 
+const handledDeath = {};         // id du joueur tué -> dernière mort déjà récompensée
 const handledHit = {};           // id de l'attaquant -> dernier coup déjà appliqué (évite les doubles dégâts)
 
 function applyPlayers(data, removeGhost) {
@@ -578,14 +579,18 @@ function applyPlayers(data, removeGhost) {
     const prev = others[id];
     others[id] = p;
     if (prev && p.atk && (!prev.atk || prev.atk.t !== p.atk.t) && p.atk.zx === me.zx && p.atk.zy === me.zy) spawnAttack(p.atk, false);   // attaque d'un autre joueur
-    if (p.atk && p.atk.hit === myId && handledHit[id] !== p.atk.t) { handledHit[id] = p.atk.t; applyHit(p.atk); }   // un joueur m'a touché
-    if (!display[id] || !prev || prev.zx !== p.zx || prev.zy !== p.zy) display[id] = { x: p.x, y: p.y };
+    if (p.atk && p.atk.hit === myId && handledHit[id] !== p.atk.t) { handledHit[id] = p.atk.t; applyHit(p.atk, id); }   // un joueur m'a touché
+    if (p.death && p.death.to === myId && handledDeath[id] !== p.death.t) {   // j'ai tué ce joueur : je reçois ma part
+      handledDeath[id] = p.death.t;
+    if (p.death.gold > 0) { addGold(p.death.gold); toast(`Joueur vaincu ! +${p.death.gold} pièces d'or`); }
+    } 
+   if (!display[id] || !prev || prev.zx !== p.zx || prev.zy !== p.zy) display[id] = { x: p.x, y: p.y };
   }
   refreshLists();
 }
 
 function publicData() {
-  return { name: me.name, color: me.color, x: me.x, y: me.y, zx: me.zx, zy: me.zy, hp: me.hp, pv: me.stats.pv, level: me.level, dir: me.dir, atk: me.atk || null, t: Date.now() };
+  return { name: me.name, color: me.color, x: me.x, y: me.y, zx: me.zx, zy: me.zy, hp: me.hp, pv: me.stats.pv, level: me.level, dir: me.dir, atk: me.atk || null, death: me.death || null, t: Date.now() };
 }
 
 async function connect() {
@@ -1341,19 +1346,22 @@ function playerAt(x, y) {                         // id du joueur (même zone) p
   return null;
 }
 
-function applyHit(a) {                            // je suis touché par l'attaque `a` d'un autre joueur
+function applyHit(a, attackerId) {                            // je suis touché par l'attaque `a` d'un autre joueur
   if (!me || zone.safe || a.zx !== me.zx || a.zy !== me.zy || !(a.pow >= 0) || !(a.roll > 0)) return;
   const phys = a.type === "physique";
   const dmg = Math.max(1, Math.round(a.pow * a.roll - statTotal(phys ? "endurance" : "resilience")));
   me.hp = Math.max(0, me.hp - dmg);
   effects.push({ kind: "float", text: "-" + dmg, x: me.x + .5, y: me.y, t0: performance.now(), life: 900, zx: me.zx, zy: me.zy });
   renderPanel();
-  if (me.hp <= 0) die(); else syncMe();
+  if (me.hp <= 0) die(attackerId); else syncMe();
 }
 
-function die() {                                  // mort : on perd 100 % des pièces, l'équipement est conservé
+const KILLER_SHARE = 0.10;                        // part des pièces du mort reçue par le tueur (le reste est perdu)
+
+function die(killerId) {                          // mort : on perd 100 % des pièces, l'équipement est conservé
   const lost = me.gold;
   addGold(-lost);
+  me.death = { t: Date.now(), to: killerId || null, gold: Math.floor(lost * KILLER_SHARE) };
   const sp = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
   me.hp = me.stats.pv; me.x = sp[0]; me.y = sp[1]; me.dir = "down"; me.nextAttack = 0;
   effects.length = 0;
