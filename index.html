@@ -34,6 +34,11 @@
   #dpad button { height: 48px; font-size: 20px; background: #2c3040; color: #fff; border: 0; border-radius: 6px; }
   @media (pointer: coarse) { #dpad { display: grid; } }
 
+   .xpRow { display: flex; justify-content: space-between; font-size: 12px; color: #9aa3bd; }
+  .bar.xp { background: #1d2a3a; height: 10px; margin: 4px 0 8px; }
+  .bar.xp > div { background: #4c8dff; width: 0; }
+  #pointsInfo { color: #ffd24c; font-size: 13px; font-weight: bold; margin-bottom: 4px; }
+  .plus { margin-left: 6px; width: 22px; height: 22px; border: 0; border-radius: 5px; background: #4c8dff; color: #fff; cursor: pointer; }
   #creation { position: fixed; inset: 0; background: rgba(10,12,18,.92); display: flex; align-items: center; justify-content: center; z-index: 10; }
   #creation .box { background: #1e2230; border: 2px solid #3a4160; border-radius: 10px; padding: 20px; width: 340px; max-width: 94vw; }
   #creation h1 { margin: 0 0 12px; font-size: 22px; }
@@ -71,6 +76,9 @@
     <h2 id="pName">Personnage</h2>
     <div>PV <span id="pvText"></span></div>
     <div class="bar"><div id="pvBar"></div></div>
+    <div class="xpRow"><span id="lvlText"></span><span id="xpText"></span></div>
+    <div class="bar xp"><div id="xpBar"></div></div>
+    <div id="pointsInfo"></div>
     <div id="statsList"></div>
     <h2 style="margin-top:14px;font-size:15px">Carte du monde</h2>
     <div id="zoneName"></div>
@@ -425,7 +433,8 @@ document.getElementById("startBtn").addEventListener("click", () => {
   localStorage.setItem("rpg_perso", JSON.stringify({ name, color }));
   const stats = computeStats();
   const sp = SPAWNS[Math.floor(Math.random() * SPAWNS.length)];
-  me = { name, color, x: sp[0], y: sp[1], zx: START_ZONE[0], zy: START_ZONE[1], stats, hp: stats.pv, lastMove: 0 };
+  me = { name, color, x: sp[0], y: sp[1], zx: START_ZONE[0], zy: START_ZONE[1], stats, hp: stats.pv, lastMove: 0,
+         level: 1, xp: 0, points: 0, visited: { "0,2": true } };
   display[myId] = { x: me.x, y: me.y };
   document.getElementById("creation").style.display = "none";
   enterZone(me.zx, me.zy);
@@ -435,9 +444,29 @@ document.getElementById("startBtn").addEventListener("click", () => {
   requestAnimationFrame(loop);
 });
 
+// ---------- Expérience et niveaux ----------
+const XP_BASE = 50;          // XP pour passer du niveau 1 au niveau 2
+const XP_GROWTH = 1.3;       // chaque niveau demande 30 % d'XP de plus que le précédent
+const POINTS_PER_LEVEL = 3;  // points de statistiques gagnés par niveau
+const DISCOVER_XP = 5;      // XP gagnés en découvrant une nouvelle zone
+const xpNeeded = lvl => Math.floor(XP_BASE * Math.pow(XP_GROWTH, lvl - 1));
+
+function gainXP(n, why) {
+  me.xp += n;
+  let ups = 0;
+  while (me.xp >= xpNeeded(me.level)) {
+    me.xp -= xpNeeded(me.level);
+    me.level++; me.points += POINTS_PER_LEVEL; ups++;
+  }
+  if (ups) { me.hp = me.stats.pv; toast(`Niveau ${me.level} ! +${ups * POINTS_PER_LEVEL} points de statistiques`); }
+  else if (why) toast(`+${n} XP : ${why}`);
+  renderPanel(); refreshLists(); syncMe();
+}
+
 function enterZone(zx, zy) {
   me.zx = zx; me.zy = zy;
   zone = getZone(zx, zy);
+  if (!me.visited[zone.id]) { me.visited[zone.id] = true; gainXP(DISCOVER_XP, "zone découverte"); }
   if (!zone.canvas) zone.canvas = renderStatic(zone);
   banner = { text: zone.name, t: performance.now() };
   display[myId] = { x: me.x, y: me.y };
@@ -450,7 +479,7 @@ function enterZone(zx, zy) {
 // 5) MULTIJOUEUR (Firebase Realtime Database)
 // =====================================================================
 function publicData() {
-  return { name: me.name, color: me.color, x: me.x, y: me.y, zx: me.zx, zy: me.zy, hp: me.hp, pv: me.stats.pv, t: Date.now() };
+  return { name: me.name, color: me.color, x: me.x, y: me.y, zx: me.zx, zy: me.zy, hp: me.hp, pv: me.stats.pv, level: me.level, t: Date.now() };
 }
 
 async function connect() {
@@ -498,6 +527,7 @@ const KEYMAP = {
   z: "up", s: "down", q: "left", d: "right", Z: "up", S: "down", Q: "left", D: "right",
 };
 window.addEventListener("keydown", e => {
+  if ((e.key === "x" || e.key === "X") && me) { gainXP(20, "test"); return; }   // À SUPPRIMER plus tard
   if (e.key === "l" || e.key === "L") { showLabels = !showLabels; return; }
   const d = KEYMAP[e.key];
   if (d) { keys[d] = true; if (e.key.startsWith("Arrow")) e.preventDefault(); }
@@ -847,14 +877,28 @@ function renderPanel() {
   document.getElementById("pName").textContent = me.name;
   document.getElementById("pvText").textContent = `${me.hp} / ${me.stats.pv}`;
   document.getElementById("pvBar").style.width = (me.hp / me.stats.pv * 100) + "%";
-  const labels = {
-    force: "Force (Attaque)", intelligence: "Intelligence (Att. magique)",
-    endurance: "Endurance (Défense)", resilience: "Résilience (Déf. magique)", vitesse: "Vitesse",
-  };
+  const need = xpNeeded(me.level);
+  document.getElementById("lvlText").textContent = "Niveau " + me.level;
+  document.getElementById("xpText").textContent = `XP ${me.xp} / ${need}`;
+  document.getElementById("xpBar").style.width = (me.xp / need * 100) + "%";
+  document.getElementById("pointsInfo").textContent = me.points > 0 ? `${me.points} point(s) à répartir` : "";
   const list = document.getElementById("statsList");
   list.innerHTML = "";
-  for (const k in labels) list.innerHTML += `<div class="stat"><span>${labels[k]}</span><span>${me.stats[k]}</span></div>`;
+  STAT_DEFS.forEach(d => {
+    const label = d.key === "pv" ? "PV max" : d.label;
+    const btn = me.points > 0 ? `<button class="plus" data-k="${d.key}">+</button>` : "";
+    list.innerHTML += `<div class="stat"><span>${label}</span><span>${me.stats[d.key]}${btn}</span></div>`;
+  });
 }
+document.getElementById("statsList").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b || !me || me.points <= 0) return;
+  const d = STAT_DEFS.find(x => x.key === b.dataset.k);
+  if (!d) return;
+  me.points--; me.stats[d.key] += d.perPoint;
+  if (d.key === "pv") me.hp += d.perPoint;
+  renderPanel(); syncMe();
+});
 
 function refreshLists() {
   if (!me) return;
@@ -871,11 +915,11 @@ function refreshLists() {
   // liste des joueurs
   const ul = document.getElementById("playerList");
   ul.innerHTML = "";
-  const all = [{ name: me.name + " (toi)", color: me.color, zx: me.zx, zy: me.zy }, ...Object.values(others)];
+  const all = [{ name: me.name + " (toi)", color: me.color, zx: me.zx, zy: me.zy, level: me.level }, ...Object.values(others)];
   all.forEach(p => {
     const li = document.createElement("li");
     li.innerHTML = `<span class="dot" style="background:${p.color}"></span>`;
-    li.appendChild(document.createTextNode(p.name));
+    li.appendChild(document.createTextNode(p.name + (p.level ? " (niv. " + p.level + ")" : "")));
     const sm = document.createElement("small");
     sm.textContent = ZONES[`${p.zx},${p.zy}`] ? ZONES[`${p.zx},${p.zy}`].short : "";
     li.appendChild(sm);
