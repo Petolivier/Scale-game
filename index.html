@@ -39,19 +39,21 @@
   .bar.xp > div { background: #4c8dff; width: 0; }
   #pointsInfo { color: #ffd24c; font-size: 13px; font-weight: bold; margin-bottom: 4px; }
   .plus { margin-left: 6px; width: 22px; height: 22px; border: 0; border-radius: 5px; background: #4c8dff; color: #fff; cursor: pointer; }
-   #invPanel { width: 292px; }
+     #invPanel { width: 292px; }
   #invHead { cursor: pointer; user-select: none; }
   #invHead small { font-size: 12px; color: #9aa3bd; font-weight: normal; }
-  #invGrid { display: grid; grid-template-columns: repeat(6, 40px); gap: 4px; justify-content: center; touch-action: none; user-select: none; }
-  .slot { position: relative; width: 40px; height: 40px; background: #14161c; border: 1px solid #2c3040; border-radius: 5px;
-          display: flex; align-items: center; justify-content: center; }
-  .slot.full { background: #262c40; border-color: #3a4160; cursor: grab; }
-  .slot.over { border-color: #ffd24c; background: #2e3550; }
-  .slot.dragging { opacity: .35; }
-  .slot .ico { font-size: 22px; line-height: 1; pointer-events: none; }
-  .qty { position: absolute; right: 2px; bottom: 0; font-size: 11px; font-weight: bold; color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; pointer-events: none; }
-  .ghost { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -50%); width: 40px; height: 40px; font-size: 24px;
-           display: flex; align-items: center; justify-content: center; background: rgba(38,44,64,.92); border: 1px solid #ffd24c; border-radius: 5px; }
+  #invGrid { position: relative; display: grid; grid-template-columns: repeat(6, 40px); gap: 4px; width: 260px; margin: 0 auto; touch-action: none; user-select: none; }
+  .slot { width: 40px; height: 40px; background: #14161c; border: 1px solid #2c3040; border-radius: 5px; }
+  #invItems { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+  .item { position: absolute; display: flex; align-items: center; justify-content: center; background: #262c40; border: 1px solid #4a5280;
+          border-radius: 5px; cursor: grab; pointer-events: auto; line-height: 1; }
+  .item.dragging { opacity: .35; }
+  .item .ico { pointer-events: none; }
+  .preview { position: absolute; border-radius: 5px; border: 2px solid; pointer-events: none; }
+  .preview.ok { background: rgba(80,200,120,.25); border-color: #50c878; }
+  .preview.no { background: rgba(220,70,70,.25); border-color: #dc4646; }
+  .ghost { position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center;
+           background: rgba(38,44,64,.92); border: 1px solid #ffd24c; border-radius: 5px; line-height: 1; }
   .invHint { font-size: 11px; color: #7f88a3; margin-top: 8px; text-align: center; }
  #creation { position: fixed; inset: 0; background: rgba(10,12,18,.92); display: flex; align-items: center; justify-content: center; z-index: 10; }
   #creation .box { background: #1e2230; border: 2px solid #3a4160; border-radius: 10px; padding: 20px; width: 340px; max-width: 94vw; }
@@ -109,7 +111,7 @@
     <h2 id="invHead">🎒 Inventaire <small id="invCount"></small></h2>
     <div id="invBody">
       <div id="invGrid"></div>
-      <div class="invHint">Glisse les objets pour les déplacer. Touche I : ouvrir / fermer.</div>
+      <div class="invHint">Glisse les objets pour les placer. R : pivoter pendant le glissé. I : ouvrir / fermer.</div>
     </div>
   </div>
 </div>
@@ -936,69 +938,84 @@ document.getElementById("statsList").addEventListener("click", e => {
 });
 
 // =====================================================================
-// INVENTAIRE : 6 colonnes x 10 lignes, objets déplaçables à la souris / au doigt
+// INVENTAIRE : grille de 6 colonnes x 10 lignes.
+// Chaque objet occupe 1 ou plusieurs cases (pas d'empilement).
 // =====================================================================
-const INV_COLS = 6, INV_ROWS = 10, INV_SIZE = INV_COLS * INV_ROWS;
-const ITEMS = {                    // stack = nombre maximum d'objets par case
-  potion:   { name: "Potion de soin",   icon: "🧪", stack: 10, desc: "Rend des points de vie." },
-  pain:     { name: "Pain",             icon: "🍞", stack: 20, desc: "Un bon casse-croûte." },
-  pomme:    { name: "Pomme",            icon: "🍎", stack: 20, desc: "Croquante et sucrée." },
-  ecaille:  { name: "Écaille",          icon: "🐟", stack: 99, desc: "Une écaille brillante à collectionner." },
-  epee:     { name: "Épée rouillée",    icon: "🗡️", stack: 1,  desc: "Elle a connu de meilleurs jours." },
-  bouclier: { name: "Bouclier en bois", icon: "🛡️", stack: 1,  desc: "Un peu fissuré." },
+const INV_COLS = 6, INV_ROWS = 10, CELL = 44;     // CELL = taille d'une case + l'espace entre deux cases
+const ITEMS = {                                   // w = largeur, h = hauteur (en cases)
+  potion:   { name: "Potion de soin",   icon: "🧪", w: 1, h: 1, desc: "Rend des points de vie." },
+  pain:     { name: "Pain",             icon: "🍞", w: 1, h: 1, desc: "Un bon casse-croûte." },
+  pomme:    { name: "Pomme",            icon: "🍎", w: 1, h: 1, desc: "Croquante et sucrée." },
+  ecaille:  { name: "Écaille",          icon: "🐟", w: 1, h: 1, desc: "Une écaille brillante à collectionner." },
+  epee:     { name: "Épée rouillée",    icon: "🗡️", w: 1, h: 3, desc: "Elle a connu de meilleurs jours." },
+  bouclier: { name: "Bouclier en bois", icon: "🛡️", w: 2, h: 2, desc: "Un peu fissuré." },
+  armure:   { name: "Armure en cuir",   icon: "🥋", w: 2, h: 3, desc: "Légère et souple." },
 };
 let invDrag = null;
 
-function initInventory() {
-  me.inv = Array(INV_SIZE).fill(null);
-  addItem("potion", 3); addItem("pain", 5); addItem("pomme", 4);
-  addItem("ecaille", 12); addItem("epee", 1); addItem("bouclier", 1);
-  renderInventory();
+const itemSize = it => it.rot ? { w: ITEMS[it.id].h, h: ITEMS[it.id].w } : { w: ITEMS[it.id].w, h: ITEMS[it.id].h };
+
+// Est-ce qu'un objet de taille w x h peut se poser en (x, y) ? (ignore = l'objet qu'on déplace)
+function fits(x, y, w, h, ignore) {
+  if (x < 0 || y < 0 || x + w > INV_COLS || y + h > INV_ROWS) return false;
+  return !me.inv.some(it => {
+    if (it === ignore) return false;
+    const s = itemSize(it);
+    return x < it.x + s.w && it.x < x + w && y < it.y + s.h && it.y < y + h;
+  });
 }
 
-// Ajoute des objets (complète les piles existantes, puis utilise les cases vides).
-// Renvoie la quantité qui n'a pas pu entrer (inventaire plein).
-function addItem(id, qty = 1) {
-  const max = ITEMS[id].stack;
-  for (let i = 0; i < INV_SIZE && qty > 0; i++) {
-    const s = me.inv[i];
-    if (s && s.id === id && s.qty < max) { const n = Math.min(max - s.qty, qty); s.qty += n; qty -= n; }
+// Cherche la première place libre (en essayant aussi l'objet tourné)
+function findSpot(id) {
+  const d = ITEMS[id];
+  for (const rot of [false, true]) {
+    const w = rot ? d.h : d.w, h = rot ? d.w : d.h;
+    for (let y = 0; y <= INV_ROWS - h; y++)
+      for (let x = 0; x <= INV_COLS - w; x++)
+        if (fits(x, y, w, h, null)) return { x, y, rot };
   }
-  for (let i = 0; i < INV_SIZE && qty > 0; i++) {
-    if (!me.inv[i]) { const n = Math.min(max, qty); me.inv[i] = { id, qty: n }; qty -= n; }
+  return null;
+}
+
+// Ajoute des objets. Renvoie le nombre d'objets qui n'ont pas pu entrer (inventaire plein).
+function addItem(id, qty = 1) {
+  while (qty > 0) {
+    const spot = findSpot(id);
+    if (!spot) break;
+    me.inv.push({ id, x: spot.x, y: spot.y, rot: spot.rot });
+    qty--;
   }
   renderInventory();
   return qty;
 }
 
-function moveItem(from, to) {
-  if (from === to) return;
-  const a = me.inv[from], b = me.inv[to];
-  if (!a) return;
-  if (b && b.id === a.id) {                        // même objet : on regroupe les piles
-    const n = Math.min(ITEMS[a.id].stack - b.qty, a.qty);
-    b.qty += n; a.qty -= n;
-    if (a.qty <= 0) me.inv[from] = null;
-  } else {                                         // sinon : on échange les deux cases
-    me.inv[from] = b; me.inv[to] = a;
-  }
+function initInventory() {
+  me.inv = [];
+  addItem("armure"); addItem("bouclier"); addItem("epee");
+  addItem("potion", 3); addItem("pain", 2); addItem("pomme", 2); addItem("ecaille", 5);
+  renderInventory();
 }
 
 function renderInventory() {
   const grid = document.getElementById("invGrid");
   if (!grid || !me || !me.inv) return;
   grid.innerHTML = "";
-  for (let i = 0; i < INV_SIZE; i++) {
-    const s = me.inv[i], d = document.createElement("div");
-    d.className = "slot" + (s ? " full" : "");
-    d.dataset.i = i;
-    if (s) {
-      d.title = ITEMS[s.id].name + " : " + ITEMS[s.id].desc;
-      d.innerHTML = `<span class="ico">${ITEMS[s.id].icon}</span>` + (s.qty > 1 ? `<span class="qty">${s.qty}</span>` : "");
-    }
-    grid.appendChild(d);
+  for (let i = 0; i < INV_COLS * INV_ROWS; i++) {
+    const c = document.createElement("div"); c.className = "slot"; grid.appendChild(c);
   }
-  document.getElementById("invCount").textContent = me.inv.filter(Boolean).length + " / " + INV_SIZE;
+  const layer = document.createElement("div"); layer.id = "invItems"; grid.appendChild(layer);
+  let used = 0;
+  for (const it of me.inv) {
+    const s = itemSize(it), d = ITEMS[it.id], el = document.createElement("div");
+    used += s.w * s.h;
+    el.className = "item"; el._it = it;
+    el.title = d.name + " : " + d.desc;
+    el.style.left = it.x * CELL + "px"; el.style.top = it.y * CELL + "px";
+    el.style.width = (s.w * CELL - 4) + "px"; el.style.height = (s.h * CELL - 4) + "px";
+    el.innerHTML = `<span class="ico" style="font-size:${Math.min(s.w, s.h) * 22 + 2}px">${d.icon}</span>`;
+    layer.appendChild(el);
+  }
+  document.getElementById("invCount").textContent = used + " / " + INV_COLS * INV_ROWS;
 }
 
 function toggleInventory() {
@@ -1008,35 +1025,59 @@ function toggleInventory() {
 document.getElementById("invHead").addEventListener("click", toggleInventory);
 
 // ---------- Glisser-déposer (souris et écran tactile) ----------
-const slotAt = e => { const t = document.elementFromPoint(e.clientX, e.clientY); return t && t.closest ? t.closest(".slot") : null; };
+function dragSize() { const d = ITEMS[invDrag.it.id]; return invDrag.rot ? { w: d.h, h: d.w } : { w: d.w, h: d.h }; }
+
+// Case visée (coin haut-gauche de l'objet), d'après la position du curseur
+function dragTarget(e) {
+  const r = document.getElementById("invGrid").getBoundingClientRect(), s = dragSize();
+  const x = Math.round((e.clientX - r.left - (s.w * CELL - 4) / 2) / CELL);
+  const y = Math.round((e.clientY - r.top - (s.h * CELL - 4) / 2) / CELL);
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  return { x, y, s, inside, ok: inside && fits(x, y, s.w, s.h, invDrag.it) };
+}
+
+function updateDrag(e) {
+  if (!invDrag) return;
+  invDrag.last = e;
+  const t = dragTarget(e), g = invDrag.ghost;
+  g.style.width = (t.s.w * CELL - 4) + "px"; g.style.height = (t.s.h * CELL - 4) + "px";
+  g.style.left = e.clientX + "px"; g.style.top = e.clientY + "px";
+  let p = invDrag.preview;
+  if (!p) { p = invDrag.preview = document.createElement("div"); document.getElementById("invItems").appendChild(p); }
+  p.className = "preview " + (t.ok ? "ok" : "no");
+  p.style.display = t.inside ? "block" : "none";
+  p.style.left = t.x * CELL + "px"; p.style.top = t.y * CELL + "px";
+  p.style.width = (t.s.w * CELL - 4) + "px"; p.style.height = (t.s.h * CELL - 4) + "px";
+}
+
 function endDrag(e, drop) {
   if (!invDrag) return;
-  const slot = drop ? slotAt(e) : null, from = invDrag.from;
-  invDrag.ghost.remove(); invDrag = null;
-  if (slot) moveItem(from, +slot.dataset.i);
+  const t = dragTarget(e), d = invDrag;
+  invDrag = null;
+  d.ghost.remove();
+  if (drop && t.ok) { d.it.x = t.x; d.it.y = t.y; d.it.rot = d.rot; }   // sinon l'objet reste où il était
   renderInventory();
 }
+
 document.getElementById("invGrid").addEventListener("pointerdown", e => {
-  const slot = e.target.closest(".slot");
-  if (!slot || !me || !me.inv || !me.inv[+slot.dataset.i]) return;
+  const el = e.target.closest(".item");
+  if (!el || !el._it || !me) return;
   e.preventDefault();
+  try { el.setPointerCapture(e.pointerId); } catch (err) {}
   const ghost = document.createElement("div");
-  ghost.className = "ghost"; ghost.innerHTML = slot.innerHTML;
+  ghost.className = "ghost"; ghost.innerHTML = el.innerHTML;
   document.body.appendChild(ghost);
-  ghost.style.left = e.clientX + "px"; ghost.style.top = e.clientY + "px";
-  invDrag = { from: +slot.dataset.i, ghost, over: null };
-  slot.classList.add("dragging");
+  invDrag = { it: el._it, el, ghost, rot: !!el._it.rot, preview: null, last: e };
+  el.classList.add("dragging");
+  updateDrag(e);
 });
-window.addEventListener("pointermove", e => {
-  if (!invDrag) return;
-  invDrag.ghost.style.left = e.clientX + "px"; invDrag.ghost.style.top = e.clientY + "px";
-  const slot = slotAt(e);
-  if (invDrag.over && invDrag.over !== slot) invDrag.over.classList.remove("over");
-  if (slot) slot.classList.add("over");
-  invDrag.over = slot;
-});
+window.addEventListener("pointermove", updateDrag);
 window.addEventListener("pointerup", e => endDrag(e, true));
 window.addEventListener("pointercancel", e => endDrag(e, false));
+// Touche R pendant le glissé : fait pivoter l'objet (ex. une épée 1x3 devient 3x1)
+window.addEventListener("keydown", e => {
+  if ((e.key === "r" || e.key === "R") && invDrag) { invDrag.rot = !invDrag.rot; updateDrag(invDrag.last); }
+});
 
 function refreshLists() {
   if (!me) return;
