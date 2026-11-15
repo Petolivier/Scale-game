@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon RPG Multijoueur</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #14161c; color: #e8e8ee; font-family: system-ui, sans-serif; }
+  #app { display: flex; flex-wrap: wrap; gap: 12px; padding: 12px; justify-content: center; align-items: flex-start; }
+  canvas { background: #000; border: 2px solid #2c3040; border-radius: 6px; max-width: 100%; image-rendering: pixelated; }
+  .panel { background: #1e2230; border: 2px solid #2c3040; border-radius: 6px; padding: 12px; width: 260px; }
+  .panel h2 { margin: 0 0 8px; font-size: 18px; }
+  .stat { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #2c3040; font-size: 14px; }
+  .stat span:first-child { color: #9aa3bd; }
+  .bar { height: 14px; background: #3a1d1d; border-radius: 7px; overflow: hidden; margin: 6px 0 10px; }
+  .bar > div { height: 100%; background: #d63c3c; width: 100%; transition: width .2s; }
+  #status { font-size: 12px; color: #9aa3bd; margin-top: 10px; }
+  #playerList { margin: 8px 0 0; padding: 0; list-style: none; font-size: 13px; }
+  #playerList li { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  #dpad { display: none; grid-template-columns: repeat(3, 48px); gap: 4px; margin-top: 10px; justify-content: center; }
+  #dpad button { height: 48px; font-size: 20px; background: #2c3040; color: #fff; border: 0; border-radius: 6px; }
+  @media (pointer: coarse) { #dpad { display: grid; } }
+
+  #creation { position: fixed; inset: 0; background: rgba(10,12,18,.92); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  #creation .box { background: #1e2230; border: 2px solid #3a4160; border-radius: 10px; padding: 20px; width: 340px; max-width: 94vw; }
+  #creation h1 { margin: 0 0 12px; font-size: 22px; }
+  #creation label { display: block; font-size: 13px; color: #9aa3bd; margin-top: 8px; }
+  #creation input[type=text] { width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #3a4160; background: #14161c; color: #fff; }
+  #creation input[type=color] { width: 60px; height: 32px; border: 0; background: none; }
+  .alloc { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; }
+  .alloc .ctrl button { width: 28px; height: 28px; border-radius: 6px; border: 0; background: #2c3040; color: #fff; font-size: 16px; cursor: pointer; }
+  .alloc .ctrl span { display: inline-block; min-width: 40px; text-align: center; }
+  #startBtn { width: 100%; margin-top: 14px; padding: 10px; border: 0; border-radius: 6px; background: #4c8dff; color: #fff; font-size: 16px; cursor: pointer; }
+  #pointsLeft { font-weight: bold; color: #ffd24c; }
+</style>
+</head>
+<body>
+
+<div id="creation">
+  <div class="box">
+    <h1>Crée ton personnage</h1>
+    <label>Nom</label>
+    <input type="text" id="nameInput" maxlength="14" placeholder="Ton pseudo">
+    <label>Couleur</label>
+    <input type="color" id="colorInput" value="#4c8dff">
+    <label>Points à répartir : <span id="pointsLeft">10</span></label>
+    <div id="allocList"></div>
+    <button id="startBtn">Entrer dans le monde</button>
+  </div>
+</div>
+
+<div id="app">
+  <canvas id="game"></canvas>
+  <div class="panel">
+    <h2 id="pName">Personnage</h2>
+    <div>PV <span id="pvText"></span></div>
+    <div class="bar"><div id="pvBar"></div></div>
+    <div id="statsList"></div>
+    <div id="dpad">
+      <span></span><button data-dir="up">▲</button><span></span>
+      <button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button>
+    </div>
+    <h2 style="margin-top:14px;font-size:15px">Joueurs en ligne</h2>
+    <ul id="playerList"></ul>
+    <div id="status">Déplacement : flèches ou Z Q S D</div>
+  </div>
+</div>
+
+<script type="module">
+// =====================================================================
+// 1) CONFIGURATION FIREBASE (à remplir pour activer le multijoueur)
+//    Tant que apiKey vaut "COLLE_ICI", le jeu tourne en mode solo.
+// =====================================================================
+const firebaseConfig = {
+  apiKey: "COLLE_ICI",
+  authDomain: "COLLE_ICI",
+  databaseURL: "COLLE_ICI",
+  projectId: "COLLE_ICI",
+  appId: "COLLE_ICI"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getDatabase, ref, set, update, onValue, onDisconnect }
+  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const ONLINE = firebaseConfig.apiKey !== "COLLE_ICI";
+
+// =====================================================================
+// 2) CARTE (identique pour tous les joueurs grâce à un générateur seedé)
+// =====================================================================
+const TILE = 32, COLS = 24, ROWS = 16;
+const GRASS = 0, TREE = 1, WATER = 2, WALL = 3;
+
+function buildMap() {
+  let seed = 1337;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const m = [];
+  for (let y = 0; y < ROWS; y++) {
+    m[y] = [];
+    for (let x = 0; x < COLS; x++) {
+      if (x === 0 || y === 0 || x === COLS - 1 || y === ROWS - 1) m[y][x] = WALL;
+      else {
+        const r = rnd();
+        m[y][x] = r < 0.08 ? TREE : r < 0.13 ? WATER : GRASS;
+      }
+    }
+  }
+  // zone de départ dégagée au centre
+  for (let y = 6; y <= 9; y++) for (let x = 10; x <= 13; x++) m[y][x] = GRASS;
+  return m;
+}
+const MAP = buildMap();
+const isBlocked = (x, y) => x < 0 || y < 0 || x >= COLS || y >= ROWS || MAP[y][x] !== GRASS;
+
+// =====================================================================
+// 3) STATISTIQUES
+// =====================================================================
+const STAT_DEFS = [
+  { key: "pv",           label: "PV (Points de vie)",    base: 100, perPoint: 10 },
+  { key: "force",        label: "Force (Attaque)",       base: 5,   perPoint: 1 },
+  { key: "intelligence", label: "Intelligence (Att. magique)", base: 5, perPoint: 1 },
+  { key: "endurance",    label: "Endurance (Défense)",   base: 5,   perPoint: 1 },
+  { key: "resilience",   label: "Résilience (Déf. magique)", base: 5, perPoint: 1 },
+  { key: "vitesse",      label: "Vitesse",               base: 5,   perPoint: 1 },
+];
+const START_POINTS = 10;
+
+// ---------- Écran de création ----------
+const alloc = {};
+STAT_DEFS.forEach(s => alloc[s.key] = 0);
+let pointsLeft = START_POINTS;
+
+const allocList = document.getElementById("allocList");
+function renderAlloc() {
+  allocList.innerHTML = "";
+  STAT_DEFS.forEach(s => {
+    const row = document.createElement("div");
+    row.className = "alloc";
+    row.innerHTML = `<span>${s.label}</span>
+      <span class="ctrl"><button data-k="${s.key}" data-d="-1">−</button>
+      <span>${s.base + alloc[s.key] * s.perPoint}</span>
+      <button data-k="${s.key}" data-d="1">+</button></span>`;
+    allocList.appendChild(row);
+  });
+  document.getElementById("pointsLeft").textContent = pointsLeft;
+}
+allocList.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  const k = b.dataset.k, d = +b.dataset.d;
+  if (d === 1 && pointsLeft > 0) { alloc[k]++; pointsLeft--; }
+  if (d === -1 && alloc[k] > 0) { alloc[k]--; pointsLeft++; }
+  renderAlloc();
+});
+renderAlloc();
+
+// Récupère un personnage sauvegardé (localStorage)
+try {
+  const saved = JSON.parse(localStorage.getItem("rpg_perso") || "null");
+  if (saved) {
+    document.getElementById("nameInput").value = saved.name;
+    document.getElementById("colorInput").value = saved.color;
+  }
+} catch (e) {}
+
+// =====================================================================
+// 4) ÉTAT DU JEU
+// =====================================================================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+canvas.width = COLS * TILE;
+canvas.height = ROWS * TILE;
+
+let me = null;                // mon joueur
+let myId = "p_" + Math.random().toString(36).slice(2, 10);
+const others = {};            // autres joueurs (données reçues)
+const display = {};           // positions affichées (lissées)
+let db = null, myRef = null;
+
+function computeStats() {
+  const st = {};
+  STAT_DEFS.forEach(s => st[s.key] = s.base + alloc[s.key] * s.perPoint);
+  return st;
+}
+
+function findSpawn() {
+  for (let i = 0; i < 100; i++) {
+    const x = 10 + Math.floor(Math.random() * 4);
+    const y = 6 + Math.floor(Math.random() * 4);
+    if (!isBlocked(x, y)) return { x, y };
+  }
+  return { x: 11, y: 7 };
+}
+
+document.getElementById("startBtn").addEventListener("click", () => {
+  const name = (document.getElementById("nameInput").value.trim() || "Aventurier").slice(0, 14);
+  const color = document.getElementById("colorInput").value;
+  localStorage.setItem("rpg_perso", JSON.stringify({ name, color }));
+  const stats = computeStats();
+  const spawn = findSpawn();
+  me = { name, color, x: spawn.x, y: spawn.y, stats, hp: stats.pv, lastMove: 0 };
+  display[myId] = { x: me.x, y: me.y };
+  document.getElementById("creation").style.display = "none";
+  renderPanel();
+  if (ONLINE) connect();
+  else document.getElementById("status").textContent = "Mode solo (Firebase non configuré). Déplacement : flèches ou Z Q S D";
+  renderPlayerList();
+  requestAnimationFrame(loop);
+});
+
+// =====================================================================
+// 5) MULTIJOUEUR (Firebase Realtime Database)
+// =====================================================================
+function publicData() {
+  return { name: me.name, color: me.color, x: me.x, y: me.y, hp: me.hp, pv: me.stats.pv, t: Date.now() };
+}
+
+function connect() {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+  myRef = ref(db, "players/" + myId);
+  set(myRef, publicData());
+  onDisconnect(myRef).remove();            // retire le joueur quand il quitte
+
+  onValue(ref(db, "players"), snap => {
+    const data = snap.val() || {};
+    for (const id in others) if (!data[id]) { delete others[id]; delete display[id]; }
+    for (const id in data) {
+      if (id === myId) continue;
+      others[id] = data[id];
+      if (!display[id]) display[id] = { x: data[id].x, y: data[id].y };
+    }
+    renderPlayerList();
+  });
+  document.getElementById("status").textContent = "Connecté au multijoueur. Déplacement : flèches ou Z Q S D";
+}
+
+function syncMe() {
+  if (ONLINE && myRef) update(myRef, publicData());
+}
+
+// =====================================================================
+// 6) DÉPLACEMENTS (la Vitesse réduit le délai entre deux cases)
+// =====================================================================
+const keys = {};
+const KEYMAP = {
+  ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right",
+  z: "up", s: "down", q: "left", d: "right",
+  Z: "up", S: "down", Q: "left", D: "right",
+};
+window.addEventListener("keydown", e => {
+  const d = KEYMAP[e.key];
+  if (d) { keys[d] = true; if (e.key.startsWith("Arrow")) e.preventDefault(); }
+});
+window.addEventListener("keyup", e => { const d = KEYMAP[e.key]; if (d) keys[d] = false; });
+document.querySelectorAll("#dpad button").forEach(b => {
+  const d = b.dataset.dir;
+  const on = ev => { ev.preventDefault(); keys[d] = true; };
+  const off = ev => { ev.preventDefault(); keys[d] = false; };
+  b.addEventListener("touchstart", on); b.addEventListener("touchend", off);
+  b.addEventListener("mousedown", on);  b.addEventListener("mouseup", off);
+});
+
+function moveDelay() { return Math.max(70, 300 - me.stats.vitesse * 15); }
+
+function handleInput(now) {
+  if (!me || now - me.lastMove < moveDelay()) return;
+  let dx = 0, dy = 0;
+  if (keys.up) dy = -1; else if (keys.down) dy = 1;
+  else if (keys.left) dx = -1; else if (keys.right) dx = 1;
+  if (!dx && !dy) return;
+  const nx = me.x + dx, ny = me.y + dy;
+  const occupied = Object.values(others).some(o => o.x === nx && o.y === ny);
+  if (!isBlocked(nx, ny) && !occupied) {
+    me.x = nx; me.y = ny; me.lastMove = now;
+    syncMe();
+  }
+}
+
+// =====================================================================
+// 7) AFFICHAGE
+// =====================================================================
+function drawTile(x, y, t) {
+  const px = x * TILE, py = y * TILE;
+  ctx.fillStyle = "#3f8f3f"; ctx.fillRect(px, py, TILE, TILE);
+  if ((x + y) % 2 === 0) { ctx.fillStyle = "rgba(0,0,0,.05)"; ctx.fillRect(px, py, TILE, TILE); }
+  if (t === TREE) {
+    ctx.fillStyle = "#5a3a1a"; ctx.fillRect(px + 13, py + 18, 6, 12);
+    ctx.fillStyle = "#1f6b2a"; ctx.beginPath(); ctx.arc(px + 16, py + 14, 11, 0, Math.PI * 2); ctx.fill();
+  } else if (t === WATER) {
+    ctx.fillStyle = "#2d6fd1"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.fillStyle = "rgba(255,255,255,.2)"; ctx.fillRect(px + 6, py + 10, 14, 2); ctx.fillRect(px + 12, py + 20, 12, 2);
+  } else if (t === WALL) {
+    ctx.fillStyle = "#4a4f63"; ctx.fillRect(px, py, TILE, TILE);
+    ctx.strokeStyle = "#383c4d"; ctx.strokeRect(px + .5, py + .5, TILE - 1, TILE - 1);
+  }
+}
+
+function drawPlayer(p, pos, isMe) {
+  const px = pos.x * TILE, py = pos.y * TILE;
+  ctx.fillStyle = "rgba(0,0,0,.3)";
+  ctx.beginPath(); ctx.ellipse(px + 16, py + 28, 10, 4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = p.color; ctx.fillRect(px + 6, py + 6, 20, 20);
+  ctx.strokeStyle = isMe ? "#fff" : "#000"; ctx.lineWidth = 2; ctx.strokeRect(px + 6, py + 6, 20, 20);
+  ctx.fillStyle = "#fff"; ctx.fillRect(px + 10, py + 12, 4, 4); ctx.fillRect(px + 18, py + 12, 4, 4);
+  ctx.fillStyle = "#000"; ctx.fillRect(px + 12, py + 13, 2, 2); ctx.fillRect(px + 20, py + 13, 2, 2);
+  // barre de vie
+  const maxHp = p.stats ? p.stats.pv : p.pv;
+  const ratio = Math.max(0, Math.min(1, p.hp / maxHp));
+  ctx.fillStyle = "#400"; ctx.fillRect(px + 4, py - 2, 24, 4);
+  ctx.fillStyle = "#e33"; ctx.fillRect(px + 4, py - 2, 24 * ratio, 4);
+  // nom
+  ctx.font = "11px system-ui"; ctx.textAlign = "center";
+  ctx.lineWidth = 3; ctx.strokeStyle = "#000"; ctx.strokeText(p.name, px + 16, py - 6);
+  ctx.fillStyle = isMe ? "#ffd24c" : "#fff"; ctx.fillText(p.name, px + 16, py - 6);
+}
+
+function loop(now) {
+  handleInput(now);
+  // lissage des déplacements
+  const target = { ...others, [myId]: me };
+  for (const id in target) {
+    const d = display[id] || (display[id] = { x: target[id].x, y: target[id].y });
+    d.x += (target[id].x - d.x) * 0.35;
+    d.y += (target[id].y - d.y) * 0.35;
+  }
+  for (let y = 0; y < ROWS; y++) for (let x = 0; x < COLS; x++) drawTile(x, y, MAP[y][x]);
+  // tri par y pour un rendu correct
+  const list = Object.keys(others).map(id => ({ id, p: others[id], me: false }));
+  list.push({ id: myId, p: me, me: true });
+  list.sort((a, b) => display[a.id].y - display[b.id].y);
+  list.forEach(o => drawPlayer(o.p, display[o.id], o.me));
+  requestAnimationFrame(loop);
+}
+
+// =====================================================================
+// 8) INTERFACE (panneau de statistiques)
+// =====================================================================
+function renderPanel() {
+  document.getElementById("pName").textContent = me.name;
+  document.getElementById("pvText").textContent = `${me.hp} / ${me.stats.pv}`;
+  document.getElementById("pvBar").style.width = (me.hp / me.stats.pv * 100) + "%";
+  const labels = {
+    force: "Force (Attaque)", intelligence: "Intelligence (Att. magique)",
+    endurance: "Endurance (Défense)", resilience: "Résilience (Déf. magique)", vitesse: "Vitesse",
+  };
+  const list = document.getElementById("statsList");
+  list.innerHTML = "";
+  for (const k in labels) {
+    list.innerHTML += `<div class="stat"><span>${labels[k]}</span><span>${me.stats[k]}</span></div>`;
+  }
+}
+
+function renderPlayerList() {
+  const ul = document.getElementById("playerList");
+  ul.innerHTML = "";
+  const all = [{ name: me.name + " (toi)", color: me.color }, ...Object.values(others)];
+  all.forEach(p => {
+    const li = document.createElement("li");
+    li.innerHTML = `<span class="dot" style="background:${p.color}"></span>`;
+    li.appendChild(document.createTextNode(p.name));
+    ul.appendChild(li);
+  });
+}
+</script>
+</body>
+</html>
