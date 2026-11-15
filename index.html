@@ -286,7 +286,7 @@ const ZONES = {
     g.building("market", 1, 1, 6, 3, "Marché");
     g.building("hall", 14, 1, 7, 4, "Grand hall");
     g.building("fountain", 11, 7, 2, 2, "Fontaine");
-    g.building("house", 2, 7, 3, 3, "Auberge", "#b03a2e");
+    g.building("inn", 2, 7, 3, 3, "Auberge", "#b03a2e");
     g.building("house", 2, 11, 3, 3, "Maison", "#2e6fb0");
     g.building("house", 18, 11, 3, 3, "Maison", "#7a4aa8");
   }},
@@ -508,7 +508,7 @@ document.querySelectorAll("#dpad button").forEach(b => {
   b.addEventListener("mousedown", on);  b.addEventListener("mouseup", off);
 });
 
-const moveDelay = () => Math.max(120, 260 - me.stats.vitesse * 4);
+const moveDelay = () => Math.max(120, 260 - me.stats.vitesse * 6);
 
 let toastTimer = null;
 function toast(msg) {
