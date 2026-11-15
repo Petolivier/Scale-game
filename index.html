@@ -26,7 +26,7 @@
   #zoneName { font-size: 13px; color: #ffd24c; margin-bottom: 4px; }
   #minimap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
   #minimap .cell { position: relative; background: #14161c; border: 1px solid #2c3040; border-radius: 4px; font-size: 9px;
-                   line-height: 1.1; height: 34px; padding: 3px; color: #9aa3bd; overflow: hidden;
+                   line-height: 1.1; height: 44px; padding: 3px; color: #9aa3bd; overflow: hidden;
                    display: flex; align-items: center; justify-content: center; text-align: center; }
   #minimap .cell.here { background: #2b4a8c; color: #fff; border-color: #4c8dff; }
   #minimap .cell b { position: absolute; top: 1px; right: 3px; color: #ffd24c; font-size: 10px; }
@@ -188,7 +188,7 @@ function finalize(g, exits, border) {
 // ---------- Les 12 zones (voir ton schéma) ----------
 const ZONES = {
   // ===== Ligne du haut =====
-  "0,0": { name: "Bois joli", short: "Bois joli", border: TREE, build(g) {
+  "0,0": { name: "Croisée des chemins", short: "Croisée des chemins", border: TREE, build(g) {
     g.scatter(TREE, 14, 1, 9, 6, 0.40);   // début de forêt (haut droite)
     g.scatter(TREE, 1, 9, 10, 6, 0.40);   // début de forêt (bas gauche)
     g.scatter(TREE, 1, 1, 10, 6, 0.05);   // plaine (haut gauche)
@@ -199,7 +199,7 @@ const ZONES = {
     g.label("Plaine", 5.5, 3.5); g.label("Début de forêt", 18.5, 3.5);
     g.label("Début de forêt", 5.5, 12.5); g.label("Plaine", 18.5, 12.5);
   }},
-  "1,0": { name: "Champ de blé + moulins", short: "Blé & moulins", border: TREE, build(g) {
+  "1,0": { name: "Champs du père Castor", short: "Champs du père Castor", border: TREE, build(g) {
     g.rect(2, 1, 20, 5, WHEAT);           // grand champ de blé en haut
     g.rect(1, 10, 9, 5, WHEAT);           // champs de blé (bas gauche)
     g.scatter(TREE, 15, 9, 8, 6, 0.40);   // début de forêt (bas droite)
@@ -218,7 +218,7 @@ const ZONES = {
     g.road([[0, 7], [23, 7]]);
     g.label("Forêt", 12.5, 3.5); g.label("Forêt", 8, 12.5);
   }},
-  "3,0": { name: "Forêt dance", short: "Forêt dance", border: TREE, build(g) {
+  "3,0": { name: "Forêt Sombre", short: "Forêt Sombre", border: TREE, build(g) {
     g.scatter(TREE, 1, 1, 22, 14, 0.70);
     g.ellipse(12, 7, 4.5, 3.2, GRASS);    // la clairière
     for (let k = 0; k < 8; k++) {         // cercle de pierres
@@ -233,7 +233,7 @@ const ZONES = {
   }},
 
   // ===== Ligne du milieu =====
-  "0,1": { name: "Route et clairière", short: "Route & clairière", border: TREE, build(g) {
+  "0,1": { name: "Chemin du vadrouilleur", short: "Chemin du vadrouilleur", border: TREE, build(g) {
     g.scatter(TREE, 1, 1, 9, 6, 0.40);    // début de forêt
     g.scatter(TREE, 1, 9, 10, 6, 0.04);
     g.scatter(TREE, 15, 9, 8, 6, 0.04);
@@ -243,7 +243,7 @@ const ZONES = {
     g.label("Début de forêt", 5.5, 3.5); g.label("Lac", 18, 4);
     g.label("Plaine", 5.5, 12.5); g.label("Plaine", 18.5, 12.5);
   }},
-  "1,1": { name: "Champs de blé", short: "Champs de blé", border: TREE, build(g) {
+  "1,1": { name: "Champs", short: "Champs", border: TREE, build(g) {
     g.rect(1, 1, 9, 6, WHEAT);
     g.rect(1, 9, 9, 6, WHEAT);
     g.rect(15, 9, 8, 6, WHEAT);
@@ -286,18 +286,18 @@ const ZONES = {
     g.building("market", 1, 1, 6, 3, "Marché");
     g.building("hall", 14, 1, 7, 4, "Grand hall");
     g.building("fountain", 11, 7, 2, 2, "Fontaine");
-    g.building("house", 2, 7, 3, 3, "Maison", "#b03a2e");
+    g.building("house", 2, 7, 3, 3, "Auberge", "#b03a2e");
     g.building("house", 2, 11, 3, 3, "Maison", "#2e6fb0");
     g.building("house", 18, 11, 3, 3, "Maison", "#7a4aa8");
   }},
-  "1,2": { name: "Route et plaine", short: "Route & plaine", border: TREE, build(g) {
+  "1,2": { name: "Chemin rocailleux", short: "Chemin rocailleux", border: TREE, build(g) {
     g.scatter(TREE, 1, 1, 22, 14, 0.04);
     g.road([[0, 7], [23, 7]]);
     g.road([[12, 0], [12, 3], [6, 7]]);   // chemin en diagonale vers le nord
     g.flowers(1, 9, 22, 6, 0.10); g.flowers(14, 1, 9, 5, 0.08);
     g.label("Plaine", 13, 12.5);
   }},
-  "2,2": { name: "Route + champs animaux", short: "Route & animaux", border: TREE, build(g) {
+  "2,2": { name: "Pâturage rocailleux", short: "Pâturage rocailleux", border: TREE, build(g) {
     g.scatter(TREE, 1, 1, 22, 5, 0.22);   // léger bois
     g.scatter(TREE, 1, 9, 10, 6, 0.05);
     g.road([[0, 7], [23, 7]]);
@@ -310,7 +310,7 @@ const ZONES = {
                    { kind: "sheep", x: 17.2, y: 13 }, { kind: "sheep", x: 18.4, y: 10.9 }, { kind: "sheep", x: 16.5, y: 12 });
     g.label("Léger bois", 12.5, 3.5); g.label("Plaine", 5.5, 12.5); g.label("Champs d'animaux", 18, 9.6);
   }},
-  "3,2": { name: "Route et clairière", short: "Route & clairière", border: TREE, build(g) {
+  "3,2": { name: "Clairière lumineuse", short: "Clairière lumineuse", border: TREE, build(g) {
     g.scatter(TREE, 15, 1, 8, 6, 0.40);   // début de forêt
     g.scatter(TREE, 1, 9, 22, 6, 0.04);
     g.road([[0, 7], [5, 7], [11, 3], [12, 3], [12, 0]]);
@@ -508,7 +508,7 @@ document.querySelectorAll("#dpad button").forEach(b => {
   b.addEventListener("mousedown", on);  b.addEventListener("mouseup", off);
 });
 
-const moveDelay = () => Math.max(70, 300 - me.stats.vitesse * 15);
+const moveDelay = () => Math.max(120, 260 - me.stats.vitesse * 4);
 
 let toastTimer = null;
 function toast(msg) {
@@ -692,7 +692,32 @@ function drawFountain(c, b) {
   c.fillStyle = "#c9c9d4"; c.beginPath(); c.arc(cx, cy, 7, 0, Math.PI * 2); c.fill();
   c.fillStyle = "#fff"; c.beginPath(); c.arc(cx, cy, 3, 0, Math.PI * 2); c.fill();
 }
-const BUILDING_DRAW = { house: drawHouse, market: drawMarket, hall: drawHall, mill: drawMillBody, fountain: drawFountain };
+ function drawInn(c, b) {
+  const x = b.x * TILE, y = b.y * TILE, w = b.w * TILE, h = b.h * TILE, wt = y + h * 0.38;
+  c.fillStyle = "rgba(0,0,0,.22)"; c.beginPath(); c.ellipse(x + w / 2, y + h - 2, w / 2, 5, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#d9c7a0"; c.fillRect(x + 3, wt, w - 6, y + h - wt - 3);
+  c.fillStyle = "#6b4423";
+  c.fillRect(x + 3, wt, 4, y + h - wt - 3); c.fillRect(x + w - 7, wt, 4, y + h - wt - 3);
+  c.fillRect(x + 3, wt + 28, w - 6, 4); c.fillRect(x + w / 2 - 2, wt, 4, 28);
+  c.fillStyle = "#6e6a64"; c.fillRect(x + 14, y + 4, 9, 18);
+  c.fillStyle = "rgba(225,225,225,.75)";
+  c.beginPath(); c.arc(x + 18, y - 1, 4, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(x + 23, y - 8, 3, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#3f5f8a"; poly(c, [x - 4, wt + 6, x + w / 2, y + 2, x + w + 4, wt + 6]);
+  c.fillStyle = "rgba(0,0,0,.2)"; poly(c, [x + w / 2, y + 2, x + w + 4, wt + 6, x + w / 2, wt + 6]);
+  c.fillStyle = "#ffd978";
+  c.fillRect(x + 12, wt + 8, 14, 14); c.fillRect(x + w - 26, wt + 8, 14, 14);
+  c.fillRect(x + 11, wt + 38, 12, 10); c.fillRect(x + w - 23, wt + 38, 12, 10);
+  c.fillStyle = "#4a2f17"; c.fillRect(x + w / 2 - 10, y + h - 30, 20, 28);
+  c.fillStyle = "#b03a2e"; poly(c, [x + w / 2 - 13, y + h - 30, x + w / 2 + 13, y + h - 30, x + w / 2 + 10, y + h - 38, x + w / 2 - 10, y + h - 38]);
+  c.fillStyle = "#ffd24c"; c.fillRect(x + w / 2 + 4, y + h - 16, 3, 3);
+  c.fillStyle = "#4a2f17"; c.fillRect(x + w - 2, wt + 14, 12, 3);
+  c.fillStyle = "#8a5a2b"; c.fillRect(x + w + 6, wt + 17, 14, 16);
+  c.strokeStyle = "#4a2f17"; c.lineWidth = 1; c.strokeRect(x + w + 6, wt + 17, 14, 16);
+  c.fillStyle = "#f2b632"; c.fillRect(x + w + 9, wt + 21, 7, 8);
+  c.fillStyle = "#fff"; c.fillRect(x + w + 9, wt + 20, 7, 2);
+}
+const BUILDING_DRAW = { house: drawHouse, inn: drawInn, market: drawMarket, hall: drawHall, mill: drawMillBody, fountain: drawFountain };
 
 function renderStatic(z) {
   const cv = document.createElement("canvas");
@@ -794,7 +819,6 @@ function loop(now) {
   }
   ctx.drawImage(zone.canvas, 0, 0);
   for (const b of zone.buildings) if (b.kind === "mill") drawBlades(b, now);
-  drawLabels();
   for (const a of zone.animals) drawAnimal(a, now);
   const list = Object.keys(targets).map(id => ({ id, p: targets[id], me: id === myId }));
   list.sort((a, b) => display[a.id].y - display[b.id].y);
