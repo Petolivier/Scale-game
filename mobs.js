@@ -39,7 +39,7 @@ export const MONSTER_TYPES = {
   },
 
   brigand: {                                   // les 3 brigands de la cachette (apparaissent à des places fixes)
-    name: "Brigand", rarity: "ultime",
+    name: "Brigand", rarity: "rare",
     hp: 200, atk: 25, armor: 3, stepMs: 280, atkMs: 1400, xp: 0, kind: "sight", sight: 7,
     loot: [],
   },
